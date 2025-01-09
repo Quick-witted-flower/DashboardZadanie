@@ -1,0 +1,14 @@
+# Ignorowanie folderów z plikami checkpoint
+.ipynb_checkpoints/
+
+# Ignorowanie wirtualnych środowisk
+venv/
+env/
+
+# Ignorowanie plików kompilowanych przez Python
+__pycache__/
+*.pyc
+
+# Ignorowanie plików specyficznych dla edytora
+.vscode/
+.idea/
