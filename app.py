@@ -11,6 +11,8 @@ import tab2
 import tab3
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
+from database import db
+
 
 external_stylesheets =['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
@@ -28,45 +30,6 @@ app.layout = html.Div([
     ),
     html.Div(id='tabs-content')  
 ], style={'backgroundColor': '#FFFFFF', 'color': 'black'})
-
-class db:
-    def __init__(self):
-        self.transactions = self.transactions_init()
-        self.cc = pd.read_csv(r'db\country_codes.csv', index_col=0)
-        self.customers = pd.read_csv(r'db\customers.csv', index_col=0)
-        self.prod_info = pd.read_csv(r'db\prod_cat_info.csv')
-
-    @staticmethod
-    def transactions_init():
-        src = r'db\transactions'
-        transaction_frames = [pd.read_csv(os.path.join(src, filename), index_col=0) for filename in os.listdir(src)]
-        transactions = pd.concat(transaction_frames, ignore_index=True)
-
-        def convert_dates(x):
-            try:
-                return dt.datetime.strptime(x, '%d-%m-%Y')
-            except:
-                return dt.datetime.strptime(x, '%d/%m/%Y')
-
-        transactions['tran_date'] = transactions['tran_date'].apply(lambda x: convert_dates(x))
-        return transactions
-
-    def merge(self):
-        df = self.transactions.join(
-            self.prod_info.drop_duplicates(subset=['prod_cat_code'])
-            .set_index('prod_cat_code')['prod_cat'], on='prod_cat_code', how='left'
-        )
-        df = df.join(
-            self.prod_info.drop_duplicates(subset=['prod_sub_cat_code'])
-            .set_index('prod_sub_cat_code')['prod_subcat'], on='prod_subcat_code', how='left'
-        )
-        df = df.join(
-            self.customers.join(self.cc, on='country_code')
-            .set_index('customer_Id'), on='cust_id'
-        )
-        self.merged = df
-        return df
-
 
 database = db()
 merged_df = database.merge()
@@ -87,14 +50,28 @@ def render_content(tab):
     [Input('sales-range', 'start_date'), Input('sales-range', 'end_date')]
 )
 def update_bar_sales(start_date, end_date):
+    if start_date is None or end_date is None:
+        return go.Figure()  # Zwróć pustą figurę, jeśli brakuje dat
+
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
+    # Filtrowanie danych
     filtered = database.merged[
         (database.merged['tran_date'] >= start_date) &
         (database.merged['tran_date'] <= end_date)
     ]
+
+    # Sprawdzenie, czy wynik filtrowania nie jest pusty
+    if filtered.empty:
+        return go.Figure()  # Zwróć pustą figurę, jeśli brak danych w zakresie
+
+    # Grupowanie danych
     grouped = filtered.groupby(
         [pd.Grouper(key='tran_date', freq='ME'), 'Store_type']
     )['total_amt'].sum().unstack()
 
+    # Tworzenie wykresu
     bar_fig = go.Figure()
     for col in grouped.columns:
         bar_fig.add_trace(go.Bar(
@@ -113,14 +90,39 @@ def update_bar_sales(start_date, end_date):
             [Input('sales-range','start_date'),Input('sales-range','end_date')])
 def tab1_choropleth_sales(start_date,end_date):
 
-    truncated =  database.merged[(database.merged['tran_date'] >= start_date)&(database.merged['tran_date'] <= end_date)]
-    grouped = truncated[truncated['total_amt']>0].groupby('country')['total_amt'].sum().round(2)
+    if start_date is None or end_date is None:
+        return go.Figure()  # Zwróć pustą figurę, jeśli brakuje dat
 
-    trace0 = go.Choropleth(colorscale='Viridis',reversescale=True,
-                            locations=grouped.index,locationmode='country names',
-                            z = grouped.values, colorbar=dict(title='Sales'))
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
+    # Filtrowanie danych
+    truncated = database.merged[
+        (database.merged['tran_date'] >= start_date) &
+        (database.merged['tran_date'] <= end_date)
+    ]
+
+    # Sprawdzenie, czy wynik filtrowania nie jest pusty
+    if truncated.empty:
+        return go.Figure()  # Zwróć pustą figurę, jeśli brak danych w zakresie
+
+    # Grupowanie danych
+    grouped = truncated[truncated['total_amt'] > 0].groupby('country')['total_amt'].sum().round(2)
+
+    # Tworzenie mapy
+    trace0 = go.Choropleth(
+        colorscale='Viridis',
+        reversescale=True,
+        locations=grouped.index,
+        locationmode='country names',
+        z=grouped.values,
+        colorbar=dict(title='Przychody')
+    )
     data = [trace0]
-    fig = go.Figure(data=data,layout=go.Layout(title='Mapa',geo=dict(showframe=False,projection={'type':'natural earth'})))
+    fig = go.Figure(data=data, layout=go.Layout(
+        title='Mapa sprzedaży wg kraju',
+        geo=dict(showframe=False, projection={'type': 'natural earth'})
+    ))
 
     return fig
 
