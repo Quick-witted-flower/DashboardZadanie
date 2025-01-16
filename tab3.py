@@ -4,20 +4,13 @@ import plotly.graph_objs as go
 import pandas as pd
 
 def render_tab(df):
-    # Dodanie kolumny z dniami tygodnia
     df['weekday'] = pd.to_datetime(df['tran_date']).dt.day_name()
-    # Poprawna kolejność dni tygodnia
+
     day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     df['weekday'] = pd.Categorical(df['weekday'], categories=day_order, ordered=True)
 
-    # Grupowanie sprzedaży wg dni tygodnia i kanałów sprzedaży
     sales_by_weekday = df.groupby(['weekday', 'Store_type'], observed=True)['total_amt'].sum().unstack()
 
-    # Znalezienie najlepszego dnia sprzedaży dla każdego kanału sprzedaży
-    max_sales_by_store = sales_by_weekday.idxmax().reset_index()
-    max_sales_by_store.columns = ['Store_type', 'Best_Sales_Day']
-
-    # Tworzenie wykresu słupkowego
     bar_fig = go.Figure()
     for store_type in sales_by_weekday.columns:
         bar_fig.add_trace(go.Bar(
@@ -37,23 +30,63 @@ def render_tab(df):
         font=dict(color='black')
     )
 
-    # Tworzenie tabeli z najlepszym dniem sprzedaży dla każdego kanału
-    sales_table = html.Table(
-        children=[
-            html.Tr([html.Th("Kanał sprzedaży"), html.Th("Najlepszy dzień sprzedaży")])] +
-            [html.Tr([html.Td(row['Store_type']), html.Td(row['Best_Sales_Day'])])
-             for _, row in max_sales_by_store.iterrows()],
-        style={
-            'width': '60%',
-            'margin': '20px auto',
-            'border': '1px solid black',
-            'border-collapse': 'collapse',
-            'text-align': 'center',
-            'backgroundColor': '#EFEFEF'
-        }
-    )
+    customer_stats = df.groupby('Store_type').agg(
+        customer_count=('cust_id', 'nunique'),  
+        transaction_count=('transaction_id', 'nunique'), 
+        total_sales=('total_amt', 'sum')  
+    ).reset_index()
+    
+    customer_stats['transaction_count'] = customer_stats['transaction_count'].fillna(0)
+    customer_stats['total_sales'] = customer_stats['total_sales'].fillna(0)
 
-    # Sekcja szczegółów klientów
+    customer_stats['transaction_count'] = customer_stats['transaction_count'].apply(lambda x: x if x > 0 else 1)
+
+    customer_fig = go.Figure()
+
+    customer_fig.add_trace(go.Bar(
+        x=customer_stats['Store_type'],
+        y=customer_stats['transaction_count'],
+        name="Liczba transakcji",
+        marker_color='rgba(255, 99, 132, 0.6)',  
+        yaxis="y2"  
+    ))
+
+    customer_fig.add_trace(go.Bar(
+        x=customer_stats['Store_type'],
+        y=customer_stats['total_sales'] / 1000, 
+        name="Suma sprzedaży (tys.)",
+        marker_color='rgba(54, 162, 235, 0.6)' 
+    ))
+
+    customer_fig.update_layout(
+        barmode='group',
+        title='Transakcje i sprzedaż według kanałów sprzedaży',
+        xaxis_title="Kanał sprzedaży",
+        yaxis=dict(
+            title="Suma sprzedaży (tys.)",
+            titlefont=dict(color='rgba(54, 162, 235, 0.6)'),
+            tickfont=dict(color='rgba(54, 162, 235, 0.6)'),
+            tickformat=",",
+        ),
+        yaxis2=dict(
+            title="Liczba transakcji",
+            titlefont=dict(color='rgba(255, 99, 132, 0.6)'),
+            tickfont=dict(color='rgba(255, 99, 132, 0.6)'),
+            overlaying="y",
+            side="right"
+        ),
+        legend=dict(
+            title="Legenda",
+            x=0.5,
+            xanchor="center",
+            y=-0.3,
+            orientation="h"
+        ),
+        plot_bgcolor='#FFFFFF',
+        paper_bgcolor='#FFFFFF',
+        font=dict(color='black'),
+        margin=dict(l=30, r=30, t=50, b=80)
+    )
     customer_details = html.Div(
         [
             html.H4('Wybierz kanał sprzedaży:', style={'color': 'black'}),
@@ -74,20 +107,19 @@ def render_tab(df):
         style={'margin': '20px'}
     )
 
-    # Layout zakładki
     layout = html.Div([
         html.H1('Kanały sprzedaży', style={
             'text-align': 'center', 
             'color': 'black',
             'margin-bottom': '20px'
         }),
-        dcc.Graph(figure=bar_fig, style={'margin-bottom': '30px'}),
-        html.H4("Najlepsze dni sprzedaży dla kanałów sprzedaży:", style={
+        dcc.Graph(id='bar-sales-weekday', figure=bar_fig, style={'margin-bottom': '30px'}),
+        html.H4("Transakcje i sprzedaż dla kanałów sprzedaży:", style={
             'text-align': 'center', 
             'color': 'black',
             'margin-bottom': '10px'
         }),
-        sales_table,
+        dcc.Graph(id='channel-sales', figure=customer_fig),
         customer_details
     ], style={
         'backgroundColor': '#F0F8FF',
@@ -97,4 +129,3 @@ def render_tab(df):
     })
 
     return layout
-

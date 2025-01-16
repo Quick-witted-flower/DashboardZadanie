@@ -4,7 +4,8 @@ import plotly.graph_objs as go
 import pandas as pd
 
 def render_tab(df):
-    # Grupowanie danych do wykresu słupkowego
+    print("Zakres dat:", df['tran_date'].min(), df['tran_date'].max())
+
     grouped_bar = df[df['total_amt'] > 0].groupby(
         [pd.Grouper(key='tran_date', freq='ME'), 'Store_type']
     )['total_amt'].sum().unstack()
@@ -20,12 +21,11 @@ def render_tab(df):
     bar_fig.update_layout(
         barmode='stack',
         title='Przychody',
-        title_x=0.5,  # Wyśrodkowanie tytułu
+        title_x=0.5, 
         margin=dict(l=10, r=10, t=40, b=40),
         legend=dict(orientation="h", y=-0.2),
     )
 
-    # Grupowanie danych do mapy
     grouped_map = df[df['total_amt'] > 0].groupby('country')['total_amt'].sum()
 
     map_fig = go.Figure(
@@ -40,18 +40,14 @@ def render_tab(df):
     )
     map_fig.update_layout(
         title='Mapa',
-        title_x=0.5,  # Wyśrodkowanie tytułu
+        title_x=0.5,  
         geo=dict(showframe=False, projection={'type': 'natural earth'}),
         margin=dict(l=10, r=10, t=40, b=40),
     )
 
-    # Layout zakładki
+    
     layout = html.Div([
-        html.H1('Sprzedaż globalna', style={
-            'text-align': 'center',
-            'color': '#333333',
-            'margin-bottom': '20px'
-        }),
+        html.H1('Sprzedaż globalna', style={'text-align': 'center', 'color': '#333333', 'margin-bottom': '20px'}),
         html.Div([
             dcc.DatePickerRange(
                 id='sales-range',
@@ -61,6 +57,8 @@ def render_tab(df):
                 style={'margin': '0 auto', 'display': 'block'}
             )
         ], style={'text-align': 'center', 'margin-bottom': '20px'}),
+        
+        html.Div(id='selected-dates', style={'text-align': 'center', 'margin-top': '20px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='bar-sales', figure=bar_fig)

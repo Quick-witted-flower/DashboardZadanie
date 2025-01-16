@@ -1,5 +1,5 @@
 import pandas as pd
-import os
+import os  # Dodaj import modułu os
 import datetime as dt
 
 class db:
@@ -37,5 +37,31 @@ class db:
             self.customers.join(self.cc, on='country_code')
             .set_index('customer_Id'), on='cust_id'
         )
+
+        df['total_amt'] = df['total_amt'] / 1000
+
         self.merged = df
-        return df
+
+        required_columns = ['Store_type', 'cust_id', 'transaction_id', 'total_amt']
+        missing_columns = [col for col in required_columns if col not in self.merged.columns]
+
+        if missing_columns:
+            print(f"Brakujące kolumny: {missing_columns}")
+        else:
+            print("Wszystkie wymagane kolumny są obecne")
+
+        missing_data = self.merged[required_columns].isnull().sum()
+
+        if missing_data.any():
+            print("Brakujące dane w kolumnach:")
+            print(missing_data[missing_data > 0])
+        else:
+            print("Brakujące dane w wymaganych kolumnach: brak")   
+
+        print("Podgląd danych po scaleniu:")
+        print(self.merged.head())
+        print("Zakres dat:", self.merged['tran_date'].min(), self.merged['tran_date'].max())
+    
+        return self.merged
+
+        
