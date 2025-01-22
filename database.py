@@ -1,5 +1,5 @@
 import pandas as pd
-import os  # Dodaj import modułu os
+import os  
 import datetime as dt
 
 class db:
@@ -39,7 +39,7 @@ class db:
         )
 
         df['total_amt'] = df['total_amt'] / 1000
-
+        df['tran_date'] = pd.to_datetime(df['tran_date'], errors='coerce')
         self.merged = df
 
         required_columns = ['Store_type', 'cust_id', 'transaction_id', 'total_amt']
